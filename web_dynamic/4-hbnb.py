@@ -1,77 +1,48 @@
-window.addEventListener('load', function () {
-  $.ajax('http://0.0.0.0:5001/api/v1/status').done(function (data) {
-    if (data.status === 'OK') {
-      $('#api_status').addClass('available');
-    } else {
-      $('#api_status').removeClass('available');
-    }
-  });
+#!/usr/bin/python3
+"""
+Flask App: integrates with AirBnB static HTML Template
+"""
+from flask import Flask, render_template, url_for
+from models import storage
+import uuid;
 
-  const amenityIds = {};
-  $('input[type=checkbox]').click(function () {
-    if ($(this).prop('checked')) {
-      amenityIds[$(this).attr('data-id')] = $(this).attr('data-name');
-    } else if (!$(this).prop('checked')) {
-      delete amenityIds[$(this).attr('data-id')];
-    }
-    if (Object.keys(amenityIds).length === 0) {
-      $('div.amenities h4').html('&nbsp;');
-    } else {
-      $('div.amenities h4').text(Object.values(amenityIds).join(', '));
-    }
-  });
+# Flask setup
+app = Flask(__name__)
+app.url_map.strict_slashes = False
+port = 5000
+host = '0.0.0.0'
 
-  $('.filters button').click(function () {
-    $.ajax({
-      type: 'POST',
-      url: 'http://0.0.0.0:5001/api/v1/places_search/',
-      contentType: 'application/json',
-      data: JSON.stringify({ amenities: Object.keys(amenityIds) })
-    }).done(function (data) {
-      $('section.places').empty();
-      $('section.places').append('<h1>Places</h1>');
-      for (const place of data) {
-        const template = `<article>
-        <div class="title">
-        <h2>${place.name}</h2>
-        <div class="price_by_night">
-      $${place.price_by_night}
-      </div>
-        </div>
-        <div class="information">
-        <div class="max_guest">
-        <i class="fa fa-users fa-3x" aria-hidden="true"></i>
 
-        <br />
+# Begins flask page rendering
+@app.teardown_appcontext
+def teardown_db(exception):
+    """
+    after each request, this method calls .close() (i.e. .remove()) on
+    the current SQLAlchemy Session
+    """
+    storage.close()
 
-      ${place.max_guest} Guests
 
-      </div>
-        <div class="number_rooms">
-        <i class="fa fa-bed fa-3x" aria-hidden="true"></i>
+@app.route('/4-hbnb')
+def hbnb_filters(the_id=None):
+    """
+    handles request to custom template with states, cities & amentities
+    """
+    state_objs = storage.all('State').values()
+    states = dict([state.name, state] for state in state_objs)
+    amens = storage.all('Amenity').values()
+    places = storage.all('Place').values()
+    users = dict([user.id, "{} {}".format(user.first_name, user.last_name)]
+                 for user in storage.all('User').values())
+    return render_template('4-hbnb.html',
+                           cache_id=uuid.uuid4(),
+                           states=states,
+                           amens=amens,
+                           places=places,
+                           users=users)
 
-        <br />
 
-      ${place.number_rooms} Bedrooms
-      </div>
-        <div class="number_bathrooms">
-        <i class="fa fa-bath fa-3x" aria-hidden="true"></i>
-
-        <br />
-
-      ${place.number_bathrooms} Bathroom
-
-      </div>
-        </div>
-        <div class="description">
-
-      ${place.description}
-
-      </div>
-
-      </article> <!-- End 1 PLACE Article -->`;
-        $('section.places').append(template);
-      }
-    });
-  });
-});
+if __name__ == "__main__":
+    """
+    MAIN Flask App"""
+    app.run(host=host, port=port)
